@@ -1,0 +1,4 @@
+verify_pack.py text eol=lf
+METHODOLOGY.md text eol=lf
+KEYS.md text eol=lf
+SHA256SUMS text eol=lf

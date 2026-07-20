@@ -78,6 +78,11 @@ The same hashes are mirrored, alongside the signing keys, at
 fails if the embedded copies drift from these hashes, so any change to the
 verifier forces a conscious re-publication here.
 
+This repository's CI independently checks `SHA256SUMS`, validates every
+published signing-key fingerprint, rejects publication placeholders, and
+exercises the standard-library cryptographic fallbacks on Python 3.10, 3.11,
+and 3.12.
+
 ## Cross-check the key registry
 
 Before pinning, compare `KEYS.md` in this repository against the mirror at

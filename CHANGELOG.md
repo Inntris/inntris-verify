@@ -2,7 +2,7 @@
 
 All notable changes to the published verifier are documented here.
 
-## v1.0.0 — 2026-07-19
+## v1.0.0 — 2026-07-20
 
 Initial publication.
 
@@ -14,6 +14,9 @@ Initial publication.
   (`sha256 4ca88e1630b922fef65abac38cf2a8708a7f04be1de473925f3b17eec4fe0801`).
 - `KEYS.md` — canonical signing key registry, mirrored at
   `https://inntris.com/.well-known/inntris-keys.txt`.
+- Repository CI verifies the published hashes, signing-key fingerprints,
+  LF checkout rules, and dependency-free cryptographic fallbacks on Python
+  3.10, 3.11, and 3.12.
 - Relative to the previously embedded copy, `verify_pack.py` adds a startup
   known-answer self-test (RFC 8032 §7.1 TEST 3) to the pure-Python Ed25519
   fallback, mirroring the existing Keccak-256 self-test.
