@@ -1,0 +1,135 @@
+name: verify publication
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  integrity:
+    name: published files and key registry
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.12"
+
+      - name: validate hashes, LF rules, and signing keys
+        run: |
+          python - <<'PY'
+          import hashlib
+          import re
+          from datetime import date
+          from pathlib import Path
+
+          expected_files = {"verify_pack.py", "METHODOLOGY.md"}
+          pins = {}
+          for line_number, raw_line in enumerate(Path("SHA256SUMS").read_text().splitlines(), 1):
+              match = re.fullmatch(r"([0-9a-f]{64})  (\S+)", raw_line)
+              if match is None:
+                  raise SystemExit(f"malformed SHA256SUMS entry at line {line_number}")
+              digest, name = match.groups()
+              if name in pins:
+                  raise SystemExit(f"duplicate SHA256SUMS entry for {name}")
+              pins[name] = digest
+          if set(pins) != expected_files:
+              raise SystemExit(f"unexpected SHA256SUMS paths: {sorted(pins)}")
+
+          for name, expected_digest in pins.items():
+              actual_digest = hashlib.sha256(Path(name).read_bytes()).hexdigest()
+              if actual_digest != expected_digest:
+                  raise SystemExit(
+                      f"hash mismatch for {name}: expected {expected_digest}, got {actual_digest}"
+                  )
+
+          required_attributes = {
+              "verify_pack.py text eol=lf",
+              "METHODOLOGY.md text eol=lf",
+              "KEYS.md text eol=lf",
+              "SHA256SUMS text eol=lf",
+          }
+          configured_attributes = {
+              line.strip()
+              for line in Path(".gitattributes").read_text().splitlines()
+              if line.strip() and not line.lstrip().startswith("#")
+          }
+          missing_attributes = required_attributes - configured_attributes
+          if missing_attributes:
+              raise SystemExit(f"missing LF attributes: {sorted(missing_attributes)}")
+
+          keys_text = Path("KEYS.md").read_text()
+          if "PENDING-PUBLICATION-DO-NOT-PIN" in keys_text:
+              raise SystemExit("KEYS.md still contains the pending publication marker")
+          key_pattern = re.compile(
+              r"^\| (ipk-\d{4}-\d{2}) \| `([0-9a-f]{64})` \| "
+              r"`([0-9a-f]{64})` \| (\d{4}-\d{2}-\d{2}) \| ([^|]+) \|$",
+              re.MULTILINE,
+          )
+          keys = key_pattern.findall(keys_text)
+          if not keys:
+              raise SystemExit("KEYS.md contains no valid active signing key")
+          if len({key_id for key_id, *_ in keys}) != len(keys):
+              raise SystemExit("KEYS.md contains a duplicate key ID")
+          for key_id, public_key_hex, fingerprint, effective_date, _scope in keys:
+              public_key = bytes.fromhex(public_key_hex)
+              if public_key == bytes(32):
+                  raise SystemExit(f"{key_id} has an all-zero public key")
+              actual_fingerprint = hashlib.sha256(public_key).hexdigest()
+              if actual_fingerprint != fingerprint:
+                  raise SystemExit(f"fingerprint mismatch for {key_id}")
+              date.fromisoformat(effective_date)
+              print(f"OK: {key_id} fingerprint {fingerprint}")
+          for name, digest in sorted(pins.items()):
+              print(f"OK: {name} {digest}")
+          PY
+
+  fallbacks:
+    name: standard library fallbacks on Python ${{ matrix.python-version }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version:
+          - "3.10"
+          - "3.11"
+          - "3.12"
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: exercise dependency-free cryptographic self-tests
+        run: |
+          python - <<'PY'
+          import builtins
+          import verify_pack
+
+          original_import = builtins.__import__
+
+          def block_optional_dependencies(name, *args, **kwargs):
+              if name.split(".")[0] in {"eth_hash", "nacl", "web3"}:
+                  raise ImportError(f"forced standard-library fallback for {name}")
+              return original_import(name, *args, **kwargs)
+
+          builtins.__import__ = block_optional_dependencies
+          try:
+              _keccak, keccak_implementation = verify_pack.load_keccak256()
+              _ed25519, ed25519_implementation = verify_pack.load_ed25519_verify()
+          finally:
+              builtins.__import__ = original_import
+
+          if keccak_implementation != "pure-python":
+              raise SystemExit(f"unexpected Keccak implementation: {keccak_implementation}")
+          if ed25519_implementation != "pure-python (RFC 8032)":
+              raise SystemExit(f"unexpected Ed25519 implementation: {ed25519_implementation}")
+          print(f"OK: Keccak via {keccak_implementation}")
+          print(f"OK: Ed25519 via {ed25519_implementation}")
+          PY
