@@ -17,7 +17,8 @@ What it checks, in order:
    silently dropped).
 3. Each receipt's ``receipt_fingerprint`` recomputed from the canonical
    seven-field contract, and the agent's Ed25519 signature over the action
-   hash.
+   hash. Server-attested events (``server_attested: true``) carry no agent
+   signature by design and are reported as ``[SKIP]``, never ``[OK]``.
 4. Each Merkle inclusion proof rebuilt leaf-to-root with keccak256 (matching
    the on-chain AnchorRegistry), compared against the recorded root.
 5. Optionally (``--rpc``): ``AnchorRegistry.getBatch(root)`` called directly
@@ -549,6 +550,17 @@ def verify_pack(
                 )
             else:
                 report.fail(f"receipt {audit_id}: agent Ed25519 signature does NOT verify")
+        elif receipt.get("server_attested") is True:
+            # The server records these events itself (approval decisions, token
+            # issuance and consumption), so there is no agent signature to
+            # check. server_attested is NOT bound by the receipt fingerprint,
+            # so it only explains the gap: this stays a SKIP, never an OK.
+            attestation_type = receipt.get("attestation_type") or "unspecified"
+            report.skip(
+                f"receipt {audit_id}: server-attested event ({attestation_type}): "
+                "no agent signature by design; covered by the signed manifest "
+                "and Merkle proof"
+            )
         else:
             report.skip(f"receipt {audit_id}: no signature material exposed")
 

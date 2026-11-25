@@ -22,6 +22,8 @@ as unverified. The pack asks you to check the math, not to take our word.
 | `custody_log.json` | Chain-of-custody events for every evidence file (covered) |
 | `receipts/<audit_id>.json` | Public verification receipts, one per action (covered) |
 | `proofs/<audit_id>.json` | Merkle inclusion proofs for anchored receipts (covered) |
+| `approval_chains/<audit_id>.json` | Public approval chains linking server-attested receipts to the agent-signed request, keyed by the chain's first receipt (covered, when present) |
+| `export_report.json` | Summary written by the export step: API, time window, counts, and every skipped receipt with its reason (covered, when present) |
 | `evidence/...` | Source artifacts: policy exports, logs, screenshots, etc. (covered) |
 
 Every file except `manifest.json` and `manifest.sig.json` is listed in the
@@ -106,6 +108,32 @@ Rules that bite:
 - The agent's Ed25519 `signature` is **excluded** from the fingerprint; it is
   verified separately, over the raw 32 bytes of `action_hash`, against the
   `public_key_b64` in the receipt.
+- Every other receipt field — including `integrity_status`, `signature_valid`,
+  `server_attested` and `attestation_type` — is display metadata **outside**
+  the fingerprint.
+
+### Server-attested receipts
+
+Some receipts are recorded by the Inntris server itself rather than signed by
+an agent: the steps of a human approval (`approval_decided`,
+`approval_token_issued`, …) and the single-use consumption of an approval
+token (`token_consumed`). They report `server_attested: true`, an
+`attestation_type`, `integrity_status: "server_attested"` and no
+`signature_b64` — there is **no agent signature by design**, not a failed one.
+
+What binds such a receipt is the rest of this procedure: its fingerprint, its
+file hash in the signed manifest, and — once anchored — its Merkle inclusion
+proof. Its `action_hash` is a SHA-256 commitment over the event facts. The
+agent-signed request it belongs to is a separate receipt, linked through the
+file in `approval_chains/`.
+
+Because `server_attested` and `attestation_type` are not fingerprint-bound,
+`verify_pack.py` treats them only as an explanation, never as proof: it
+prints a `[SKIP]` line (“server-attested event (<attestation_type>): no agent
+signature by design; covered by the signed manifest and Merkle proof”), not an
+`[OK]`. Receipts with `integrity_status: "unsigned_ingestion"` are
+partner-reported events recorded without any signature; they are not
+cryptographically attested and are skipped as having no signature material.
 
 ## 6. Chain of custody
 
@@ -179,8 +207,10 @@ python verify_pack.py /path/to/pack.zip --pubkey <published-key-hex-or-b64>
 This checks, in order: the Ed25519 signature over `manifest.json`; every
 file's SHA-256 against the signed manifest (both directions — nothing
 missing, nothing smuggled); every receipt's fingerprint against the
-canonical contract; every agent signature over its action hash; and every
-Merkle inclusion proof rebuilt leaf-to-root with keccak256.
+canonical contract; every agent signature over its action hash (receipts
+with no signature material, including server-attested events, are reported
+as `[SKIP]`); and every Merkle inclusion proof rebuilt leaf-to-root with
+keccak256.
 
 With one added network call — to a Base RPC node **you** choose, not to
 Inntris:
