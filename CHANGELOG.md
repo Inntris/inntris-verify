@@ -2,6 +2,31 @@
 
 All notable changes to the published verifier are documented here.
 
+## v1.1.0 — 2026-11-25
+
+Explains server-attested receipts. No change to the receipt fingerprint, the
+Merkle check, the manifest signature, or the signing key registry
+(`KEYS.md`, `ipk-2026-01`, unchanged): every pack that verified under v1.0.0
+verifies identically under v1.1.0.
+
+- `verify_pack.py`
+  (`sha256 07cbe5bd2a0a2807f3baecc6bd09d40ebdfa3fe510c44b927bb0aa4c8f984d98`):
+  when a receipt carries no signature material and reports
+  `server_attested: true`, the `[SKIP]` line now reads "server-attested event
+  (<attestation_type>): no agent signature by design; covered by the signed
+  manifest and Merkle proof" instead of "no signature material exposed". It
+  stays a `[SKIP]`, never an `[OK]`: `server_attested` is display metadata,
+  not bound by the receipt fingerprint, so the verifier does not treat it as
+  proof. Receipts without the flag keep the previous message.
+- `METHODOLOGY.md`
+  (`sha256 3bac8adcd1bf523c55eef1e435c8b4ef244485907a5cc1e6bc4f041f1d3f6056`):
+  new "Server-attested receipts" section (approval lifecycle and token
+  consumption rows, what binds them, why they are a `[SKIP]`); receipt
+  display fields such as `integrity_status`, `server_attested` and
+  `attestation_type` documented as outside the fingerprint; pack layout lists
+  `approval_chains/<audit_id>.json` and `export_report.json`, written by the
+  new `build_evidence_pack.py export` step in the Inntris main repository.
+
 ## v1.0.0 — 2026-07-20
 
 Initial publication.

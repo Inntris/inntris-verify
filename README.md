@@ -68,8 +68,8 @@ of verification logic plus two widely-audited libraries.
 embedded in every evidence pack:
 
 ```
-332928c85e25149810a068cfe21f9d15aca31f083469bc9ee3d958f67165a366  verify_pack.py
-4ca88e1630b922fef65abac38cf2a8708a7f04be1de473925f3b17eec4fe0801  METHODOLOGY.md
+07cbe5bd2a0a2807f3baecc6bd09d40ebdfa3fe510c44b927bb0aa4c8f984d98  verify_pack.py
+3bac8adcd1bf523c55eef1e435c8b4ef244485907a5cc1e6bc4f041f1d3f6056  METHODOLOGY.md
 ```
 
 The same hashes are mirrored, alongside the signing keys, at
